@@ -101,4 +101,4 @@ C'est avant tout un outil personnel, cod√© en grande partie avec ChatGPT pour r√
 
 ## Licence
 
-Ce projet est sous licence MIT. Voir le fichier [LICENSE](LICENSE) pour plus d'informations.
+Ce projet est sous licence MIT. Voir le fichier [LICENSE](LICENSE.md) pour plus d'informations.
