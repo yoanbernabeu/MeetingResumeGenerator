@@ -20,8 +20,8 @@ MeetingResumeGenerator est une CLI (écrite en Go) qui permet de convertir un fi
 
 1. Clonez le dépôt :
    ```sh
-   git clone <URL-du-depot>
-   cd <nom-du-repertoire>
+   git clone git@github.com:yoanbernabeu/MeetingResumeGenerator.git
+   cd MeetingResumeGenerator
    ```
 2. Compilez le programme :
    ```sh
@@ -97,12 +97,8 @@ Pour la liste complète des langues supportées, référez-vous au code source.
 
 ## Contribution
 
-Les contributions sont les bienvenues ! N'hésitez pas à ouvrir des issues pour signaler des bugs ou proposer de nouvelles fonctionnalités.
+C'est avant tout un outil personnel, codé en grande partie avec ChatGPT pour répondre à un besoin spécifique. Si vous souhaitez contribuer, n'hésitez pas à ouvrir une issue ou une pull request, mais aucune garantie n'est donnée quant à la fusion des modifications 😀.
 
 ## Licence
 
-Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus d'informations.
-
-## Contact
-
-Pour toute question ou support, n'hésitez pas à contacter [votre.nom@example.com](mailto:votre.nom@example.com).
+Ce projet est sous licence MIT. Voir le fichier [LICENSE](LICENSE) pour plus d'informations.
