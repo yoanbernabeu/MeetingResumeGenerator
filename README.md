@@ -2,7 +2,7 @@
 
 ## Description
 
-MeetingResumeGenerator est une CLI (écrite en Go) qui permet de convertir un fichier `.mkv` en `.mp3`, de transcrire son contenu audio en texte à l'aide de l'API OpenAI Whisper, puis de générer un compte-rendu structuré à l'aide de l'API OpenAI GPT-4. Cela est particulièrement utile pour obtenir des transcriptions et des synthèses de réunions, conférences ou discussions.
+MeetingResumeGenerator est une CLI (écrite en Go) qui permet de convertir un fichier `.mkv` en `.mp3`, de transcrire son contenu audio en texte à l'aide de l'API OpenAI Whisper ou Replicate (avec le modèle `whisper-diarization`), puis de générer un compte-rendu structuré à l'aide de l'API OpenAI GPT-4. Cela est particulièrement utile pour obtenir des transcriptions et des synthèses de réunions, conférences ou discussions.
 
 ## Fonctionnalités
 
