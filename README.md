@@ -5,8 +5,10 @@
 MeetingResumeGenerator est une CLI (écrite en Go) qui permet de convertir un fichier `.mkv` en `.mp3`, de transcrire son contenu audio en texte à l'aide de l'API OpenAI Whisper, puis de générer un compte-rendu structuré à l'aide de l'API OpenAI GPT-4. Cela est particulièrement utile pour obtenir des transcriptions et des synthèses de réunions, conférences ou discussions.
 
 ## Fonctionnalités
+
 - Conversion de fichiers `.mkv` en `.mp3` à l'aide de `ffmpeg`.
 - Transcription audio en texte à l'aide de l'API OpenAI Whisper.
+- Transcription audio avec diarisation (identification des locuteurs) à l'aide de l'API Replicate.
 - Génération d'un compte-rendu au format Markdown à l'aide de l'API OpenAI GPT-4.
 - Prise en charge de plusieurs langues (codes ISO 639-1).
 
@@ -14,6 +16,7 @@ MeetingResumeGenerator est une CLI (écrite en Go) qui permet de convertir un fi
 
 - **ffmpeg** : pour la conversion de fichiers `.mkv` en `.mp3`. Assurez-vous d'avoir `ffmpeg` installé et accessible via la ligne de commande.
 - **Clé d'API OpenAI** : une clé API valide est nécessaire pour utiliser les services OpenAI. Vous devez définir la variable d'environnement `OPENAI_API_KEY`.
+- **Clé d'API Replicate** : une clé API valide est nécessaire pour utiliser les services Replicate pour la diarisation. Vous devez définir la variable d'environnement `REPLICATE_API_KEY`.
 - **Go** : pour compiler et exécuter le projet.
 
 ## Installation
@@ -48,17 +51,23 @@ MeetingResumeGenerator est une CLI (écrite en Go) qui permet de convertir un fi
    export OPENAI_API_KEY="votre_cle_api_openai"
    ```
 
-2. Exécutez la commande suivante pour convertir un fichier `.mkv`, le transcrire et générer un compte-rendu :
+2. (Optionnel) Définissez votre clé d'API Replicate en tant que variable d'environnement pour la diarisation :
    ```sh
-   meetingresumegenerator -input chemin/vers/votre_fichier.mkv -lang fr
+   export REPLICATE_API_KEY="votre_cle_api_replicate"
+   ```
+
+3. Exécutez la commande suivante pour convertir un fichier `.mkv`, le transcrire et générer un compte-rendu :
+   ```sh
+   meetingresumegenerator -input chemin/vers/votre_fichier.mkv -lang fr [-diarization nombre_de_locuteurs]
    ```
 
    - `-input` : Spécifiez le chemin du fichier `.mkv` que vous voulez transcrire.
    - `-lang` : Spécifiez le code ISO 639-1 de la langue de l'audio (ex: `fr` pour français, `en` pour anglais). Par défaut, la langue est `fr`.
+   - `-diarization` : (Optionnel) Spécifiez le nombre de locuteurs pour la diarisation. Si cette option est utilisée, l'API Replicate sera appelée pour la transcription avec identification des locuteurs.
 
-3. Les fichiers de transcription (`transcript.txt`) et de compte-rendu (`resume.md`) seront générés dans le répertoire courant.
+4. Les fichiers de transcription (`transcript.txt`) et de compte-rendu (`resume.md`) seront générés dans le répertoire courant.
 
-## Exemple
+## Exemple sans diarisation
 
 Supposons que vous ayez un fichier nommé `meeting.mkv` que vous voulez transcrire en français.
 
@@ -69,6 +78,22 @@ meetingresumegenerator -input meeting.mkv -lang fr
 Cela va :
 1. Convertir `meeting.mkv` en `meeting.mp3`.
 2. Transcrire l'audio avec l'API OpenAI Whisper et sauvegarder le résultat dans `transcript.txt`.
+3. Générer un compte-rendu formaté en Markdown dans `resume.md`.
+
+### Exemple avec diarisation
+
+Supposons que vous ayez un fichier audio avec deux locuteurs et que vous souhaitez identifier les locuteurs dans la transcription.
+Pour utiliser la diarisation avec le modèle Replicate [thomasmol/whisper-diarization](https://replicate.com/thomasmol/whisper-diarization), exécutez la commande suivante :
+
+```sh
+meetingresumegenerator -input chemin/vers/votre_fichier.mkv -lang fr -diarization 2
+```
+
+Dans cet exemple, `-diarization 2` indique que l'audio contient deux locuteurs. Le modèle Replicate sera utilisé pour transcrire l'audio avec identification des locuteurs.
+
+Cela va :
+1. Convertir le fichier `.mkv` en `.mp3`.
+2. Transcrire l'audio avec l'API Replicate et sauvegarder le résultat dans `transcript.txt`.
 3. Générer un compte-rendu formaté en Markdown dans `resume.md`.
 
 ## Langues supportées

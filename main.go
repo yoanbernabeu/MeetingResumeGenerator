@@ -2,15 +2,19 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 )
 
 var supportedLanguages = map[string]bool{
@@ -33,11 +37,14 @@ func main() {
 	// Paramètres en ligne de commande
 	inputFile := flag.String("input", "", "Chemin du fichier .mkv à transcrire")
 	language := flag.String("lang", "fr", "Code de langue ISO 639-1 (par ex: fr)")
+	diarization := flag.Int("diarization", 0, "Nombre de locuteurs pour la diarisation (optionnel)")
 	flag.Parse()
 
 	// Récupération de la clé d'API depuis la variable d'environnement
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
+	openAIKey := os.Getenv("OPENAI_API_KEY")
+	replicateKey := os.Getenv("REPLICATE_API_KEY")
+
+	if openAIKey == "" {
 		fmt.Println("Erreur : Veuillez définir la clé API dans la variable d'environnement OPENAI_API_KEY")
 		return
 	}
@@ -61,12 +68,24 @@ func main() {
 
 	fmt.Println("Conversion en .mp3 terminée avec succès.")
 
-	// Appel de l'API OpenAI Whisper pour la transcription
-	fmt.Println("Début de l'appel à l'API OpenAI Whisper pour la transcription...")
-	transcription, err := callOpenAIWhisperAPI(apiKey, outputFile, *language)
+	// Appel de l'API de transcription
+	var transcription string
+	var err error
+
+	if *diarization > 0 {
+		if replicateKey == "" {
+			fmt.Println("Erreur : Veuillez définir la clé API dans la variable d'environnement REPLICATE_API_KEY")
+			return
+		}
+		fmt.Println("Début de l'appel à l'API Replicate pour la transcription avec diarisation...")
+		transcription, err = callReplicateAPI(replicateKey, outputFile, *language, *diarization)
+	} else {
+		fmt.Println("Début de l'appel à l'API OpenAI Whisper pour la transcription...")
+		transcription, err = callOpenAIWhisperAPI(openAIKey, outputFile, *language)
+	}
+
 	if err != nil {
-		fmt.Printf("Erreur lors de l'appel à l'API OpenAI : %v\n", err)
-		return
+		log.Fatalf("Erreur lors de l'appel à l'API : %v", err)
 	}
 
 	// Sauvegarde de la transcription
@@ -79,7 +98,7 @@ func main() {
 
 	// Appel de l'API OpenAI GPT-4 pour le compte-rendu
 	fmt.Println("Début de l'appel à l'API OpenAI GPT-4 pour le compte-rendu...")
-	resume, err := callOpenAIGPT4(apiKey, transcription)
+	resume, err := callOpenAIGPT4(openAIKey, transcription)
 	if err != nil {
 		fmt.Printf("Erreur lors de l'appel à GPT-4 : %v\n", err)
 		return
@@ -217,6 +236,112 @@ Formattez chaque section avec des titres et sous-titres en Markdown et veillez �
 	if choices, ok := result["choices"].([]interface{}); ok && len(choices) > 0 {
 		if message, ok := choices[0].(map[string]interface{})["message"].(map[string]interface{}); ok {
 			return message["content"].(string), nil
+		}
+	}
+
+	return "", fmt.Errorf("réponse inattendue de l'API : %s", string(respBody))
+}
+
+// Appel à l'API Replicate pour obtenir la transcription avec diarisation
+func callReplicateAPI(apiKey, audioFile, language string, numSpeakers int) (string, error) {
+	// Lire le fichier audio et l'encoder en base64
+	fileData, err := ioutil.ReadFile(audioFile)
+	if err != nil {
+		return "", fmt.Errorf("erreur d'ouverture du fichier : %v", err)
+	}
+	fileBase64 := base64.StdEncoding.EncodeToString(fileData)
+	fileDataURI := fmt.Sprintf("data:application/octet-stream;base64,%s", fileBase64)
+
+	// Construction de la requête JSON
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"version": "cbd15da9f839c5f932742f86ce7def3a03c22e2b4171d42823e83e314547003f",
+		"input": map[string]interface{}{
+			"file":                     fileDataURI,
+			"language":                 language,
+			"num_speakers":             numSpeakers,
+			"group_segments":           true,
+			"offset_seconds":           0,
+			"transcript_output_format": "both",
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("erreur lors de la création du JSON : %v", err)
+	}
+
+	// Créer et envoyer la requête HTTP
+	req, err := http.NewRequest("POST", "https://api.replicate.com/v1/predictions", bytes.NewBuffer(requestBody))
+	if err != nil {
+		return "", fmt.Errorf("erreur lors de la création de la requête HTTP : %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Prefer", "wait")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("erreur d'envoi de la requête HTTP : %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Lire et renvoyer le corps de la réponse
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("erreur de lecture de la réponse : %v", err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return "", fmt.Errorf("erreur lors de l'analyse du JSON : %v", err)
+	}
+
+	// Vérifier l'état de la prédiction
+	if _, ok := result["id"].(string); !ok {
+		return "", fmt.Errorf("réponse inattendue de l'API : %s", string(respBody))
+	}
+
+	status := result["status"].(string)
+	predictionURL := result["urls"].(map[string]interface{})["get"].(string)
+
+	for status == "starting" || status == "processing" {
+		fmt.Println("La prédiction est en cours, veuillez patienter...")
+		time.Sleep(5 * time.Second)
+
+		// Requête GET pour vérifier l'état actuel de la prédiction
+		req, err := http.NewRequest("GET", predictionURL, nil)
+		if err != nil {
+			return "", fmt.Errorf("erreur lors de la création de la requête HTTP : %v", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return "", fmt.Errorf("erreur d'envoi de la requête HTTP : %v", err)
+		}
+		defer resp.Body.Close()
+
+		respBody, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return "", fmt.Errorf("erreur de lecture de la réponse : %v", err)
+		}
+
+		if err := json.Unmarshal(respBody, &result); err != nil {
+			return "", fmt.Errorf("erreur lors de l'analyse du JSON : %v", err)
+		}
+
+		status = result["status"].(string)
+	}
+
+	if status == "succeeded" {
+		// Re-récupérer les détails de la prédiction une fois le statut à "succeeded"
+		if output, ok := result["output"].(map[string]interface{}); ok {
+			if transcript, ok := output["segments"].([]interface{}); ok {
+				transcriptBytes, err := json.Marshal(transcript)
+				if err != nil {
+					return "", fmt.Errorf("erreur lors de la conversion des segments en JSON : %v", err)
+				}
+				return string(transcriptBytes), nil
+			}
 		}
 	}
 
